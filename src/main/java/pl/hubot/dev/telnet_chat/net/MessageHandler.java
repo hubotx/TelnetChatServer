@@ -1,11 +1,13 @@
 package pl.hubot.dev.telnet_chat.net;
 
 import pl.hubot.dev.telnet_chat.user.User;
+import pl.hubot.dev.telnet_chat.util.PluginExecutor;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.net.Socket;
 import java.util.*;
 
@@ -60,13 +62,17 @@ public class MessageHandler extends Thread {
                 String line = in.nextLine();
                 if (line.trim().equals("BYE"))
                     done = true;
-
-                if (line.trim().startsWith(":PRIVMSG")) {
-                    String[] args = line.trim().split(" ");
-                    if (args.length > 2) {
-                        priv(args[1], line.trim().substring(args[0].length() + args[1].length() + 2, line.trim().length()));
-                    } else {
-                        out.println("Usage: :PRIVMSG [user] message");
+                if (line.startsWith(":")) {
+                    PluginExecutor pluginExecutor = new PluginExecutor(user);
+                    try {
+                        pluginExecutor.execute(line);
+                    } catch (ClassNotFoundException ex) {
+                        out.println("Error: Plugin not found!!!");
+                    } catch (IllegalAccessException
+                            | InstantiationException
+                            | InvocationTargetException
+                            | NoSuchMethodException e) {
+                        e.printStackTrace();
                     }
                 } else {
                     sendAll(user.getNickname() + ": " + line);
@@ -89,13 +95,20 @@ public class MessageHandler extends Thread {
         }
     }
 
-    private PrintWriter getOut() {
-        return out;
+    public static Set<MessageHandler> getHandlers() {
+        return handlers;
     }
 
-    private void respond(String text) {
-        this.out.println(text);
-        this.out.flush();
+    public static Map<String, User> getUsers() {
+        return users;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public PrintWriter getOut() {
+        return out;
     }
 
     private void sendAll(String message) {
@@ -106,12 +119,8 @@ public class MessageHandler extends Thread {
         }
     }
 
-    private void priv(String nickname, String message) {
-        for (MessageHandler handler : handlers) {
-            User desiredUser = users.get(user.getNickname());
-            if (desiredUser.getNickname().equals(nickname)) {
-                handler.getOut().println("[privmsg] " + nickname + ": " + message);
-            }
-        }
+    private void respond(String text) {
+        this.out.println(text);
+        this.out.flush();
     }
 }
